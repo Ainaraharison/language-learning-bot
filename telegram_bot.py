@@ -85,13 +85,13 @@ class LanguageLearningBot:
         """Change le niveau de l'utilisateur"""
         self.user_levels[user_id] = level
     
-    def get_system_prompt(self, user_name: str, vocab_list: list, level: str = "beginner") -> str:
+    def get_system_prompt(self, user_name: str, vocab_count: int, level: str = "beginner") -> str:
         """
         Génère le prompt système pour l'agent
         
         Args:
             user_name: Prénom de l'utilisateur
-            vocab_list: Liste de vocabulaire
+            vocab_count: Nombre de mots dans le vocabulaire
             level: Niveau de difficulté (beginner, intermediate, advanced)
         
         Returns:
@@ -114,8 +114,8 @@ You are an AI-powered English tutor designed to help {user_name} learn and pract
 # Role
 Your primary role is to generate interactive exercises (MCQs, fill-in-the-blank, grammar exercises) and evaluate the user's responses.
 
-# Available Vocabulary List
-{vocab_list}
+# Vocabulary
+You have access to {vocab_count} vocabulary words covering general, business, and academic topics.
 
 # Types of Exercises
 
@@ -193,8 +193,8 @@ D) transport"
             Réponse de l'IA
         """
         try:
-            # Récupérer le vocabulaire
-            vocab_list = self.vocab.get_vocabulary_list()
+            # Récupérer le nombre de mots dans le vocabulaire
+            vocab_count = self.vocab.get_vocab_count()
             
             # Récupérer le niveau de l'utilisateur
             user_level = self.get_user_level(user_id)
@@ -206,7 +206,7 @@ D) transport"
             messages = [
                 {
                     "role": "system",
-                    "content": self.get_system_prompt(user_name, vocab_list, user_level)
+                    "content": self.get_system_prompt(user_name, vocab_count, user_level)
                 }
             ]
             
@@ -219,12 +219,17 @@ D) transport"
                 "content": message
             })
             
-            # Appel à l'API OpenAI
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=0.7,
-                max_tokens=500
+            # Appel à l'API (Groq/OpenAI) de manière asynchrone
+            import asyncio
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    temperature=0.7,
+                    max_tokens=500
+                )
             )
             
             assistant_message = response.choices[0].message.content
