@@ -210,8 +210,9 @@ D) transport"
                 }
             ]
             
-            # Ajouter l'historique
-            messages.extend(history)
+            # Ajouter seulement les 6 derniers messages de l'historique pour économiser les tokens
+            recent_history = history[-6:] if len(history) > 6 else history
+            messages.extend(recent_history)
             
             # Ajouter le nouveau message
             messages.append({
@@ -228,7 +229,7 @@ D) transport"
                     model=self.model,
                     messages=messages,
                     temperature=0.7,
-                    max_tokens=500
+                    max_tokens=300  # Réduit de 500 à 300 pour économiser
                 )
             )
             
@@ -241,8 +242,14 @@ D) transport"
             return assistant_message
             
         except Exception as e:
+            error_msg = str(e)
             logger.error(f"Erreur lors de la génération de réponse: {e}")
-            return "❌ Désolé, une erreur s'est produite. Réessayez."
+            
+            # Gestion spécifique du rate limit
+            if "429" in error_msg or "rate_limit" in error_msg.lower():
+                return "⏳ **Rate limit atteint**\n\nJ'ai utilisé toutes mes requêtes quotidiennes gratuites chez Groq.\n\n⏰ Réessayez dans quelques heures ou demain.\n\n💡 Astuce: Pour usage intensif, créez un nouveau compte Groq gratuit sur console.groq.com et mettez à jour GROQ_API_KEY."
+            
+            return "❌ Désolé, une erreur s'est produite. Réessayez dans quelques instants."
 
 
 # Instance globale du bot
