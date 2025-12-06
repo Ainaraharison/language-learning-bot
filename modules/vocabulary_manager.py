@@ -28,8 +28,8 @@ class VocabularyManager:
         # Initialiser le scraper si demandé
         if self.auto_scrape:
             try:
-                from .word_scraper import scraper
-                self.scraper = scraper
+                from .word_scraper import WordScraper
+                self.scraper = WordScraper()
                 print("✅ Web scraper initialized")
             except ImportError:
                 print("⚠️ Could not import word_scraper, auto-scraping disabled")
