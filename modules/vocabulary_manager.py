@@ -1,6 +1,6 @@
 """
 Module de gestion du vocabulaire
-Peut charger depuis un fichier CSV, JSON ou Google Sheets
+Peut charger depuis un fichier CSV, JSON, Google Sheets ou scraper en ligne
 """
 
 import json
@@ -8,20 +8,33 @@ import csv
 from pathlib import Path
 from typing import List, Dict, Tuple
 import random
-
-
+import os
 class VocabularyManager:
     """Gère le vocabulaire pour les exercices"""
     
-    def __init__(self, vocab_file: str = None):
+    def __init__(self, vocab_file: str = None, auto_scrape: bool = False):
         """
         Initialise le gestionnaire de vocabulaire
         
         Args:
             vocab_file: Chemin vers le fichier de vocabulaire (optionnel)
+            auto_scrape: Si True, scrape automatiquement des mots en ligne
         """
         self.vocab_file = vocab_file
         self.vocabulary: List[Dict[str, str]] = []
+        self.auto_scrape = auto_scrape
+        self.scraper = None
+        
+        # Initialiser le scraper si demandé
+        if self.auto_scrape:
+            try:
+                from .word_scraper import scraper
+                self.scraper = scraper
+                print("✅ Web scraper initialized")
+            except ImportError:
+                print("⚠️ Could not import word_scraper, auto-scraping disabled")
+                self.auto_scrape = False
+        
         self.load_vocabulary()
     
     def load_vocabulary(self):
@@ -216,6 +229,58 @@ class VocabularyManager:
     def get_vocab_count(self) -> int:
         """Retourne le nombre de mots dans le vocabulaire"""
         return len(self.vocabulary)
+    
+    def scrape_and_add_words(self, count: int = 10, category: str = None) -> int:
+        """
+        Scrape et ajoute de nouveaux mots au vocabulaire
+        
+        Args:
+            count: Nombre de mots à scraper
+            category: Catégorie (general, business, academic) ou None pour aléatoire
+        
+        Returns:
+            Nombre de mots ajoutés
+        """
+        if not self.scraper:
+            print("⚠️ Scraper not initialized. Set auto_scrape=True")
+            return 0
+        
+        try:
+            print(f"🔍 Scraping {count} new words...")
+            
+            if category:
+                new_words = self.scraper.get_words_by_category(category, count)
+            else:
+                new_words = self.scraper.scrape_common_words_list(count)
+            
+            # Éviter les doublons
+            existing_words = {w['word'].lower() for w in self.vocabulary}
+            unique_words = [w for w in new_words if w['word'].lower() not in existing_words]
+            
+            self.vocabulary.extend(unique_words)
+            
+            # Sauvegarder dans un fichier JSON
+            self._save_to_json()
+            
+            print(f"✅ Added {len(unique_words)} new words ({len(new_words) - len(unique_words)} duplicates skipped)")
+            return len(unique_words)
+            
+        except Exception as e:
+            print(f"❌ Error scraping words: {e}")
+            return 0
+    
+    def _save_to_json(self, filename: str = "data/vocabulary_scraped.json"):
+        """Sauvegarde le vocabulaire dans un fichier JSON"""
+        try:
+            # Créer le dossier data si nécessaire
+            Path(filename).parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(self.vocabulary, f, ensure_ascii=False, indent=2)
+            
+            print(f"💾 Vocabulary saved to {filename}")
+        except Exception as e:
+            print(f"⚠️ Could not save vocabulary: {e}")
     
     def get_statistics(self) -> str:
         """

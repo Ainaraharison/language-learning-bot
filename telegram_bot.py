@@ -60,7 +60,9 @@ else:
     print(f"🤖 Using OpenAI - Model: {MODEL_NAME}")
 
 # Initialisation des managers
-vocab_manager = VocabularyManager()
+# AUTO_SCRAPE=True pour activer le scraping automatique de vocabulaire
+AUTO_SCRAPE = os.getenv("AUTO_SCRAPE", "false").lower() == "true"
+vocab_manager = VocabularyManager(auto_scrape=AUTO_SCRAPE)
 memory_manager = ConversationMemory()
 
 
@@ -362,6 +364,28 @@ async def set_level_advanced(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await update.message.reply_text("✅ Level set to ADVANCED! Let's tackle complex English. Use /practice!")
 
 
+async def scrape_words(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Commande /scrape - Scraper de nouveaux mots"""
+    if not vocab_manager.auto_scrape:
+        await update.message.reply_text("❌ Auto-scraping is disabled. Set AUTO_SCRAPE=true in .env to enable it.")
+        return
+    
+    await update.message.reply_text("🔍 Scraping new vocabulary words from online dictionaries... Please wait.")
+    
+    # Scraper 15 nouveaux mots
+    added = vocab_manager.scrape_and_add_words(count=15)
+    
+    if added > 0:
+        total = vocab_manager.get_vocab_count()
+        await update.message.reply_text(
+            f"✅ Successfully added {added} new words!\n\n"
+            f"📚 Total vocabulary: {total} words\n\n"
+            f"Use /vocab to see statistics or /practice to start learning!"
+        )
+    else:
+        await update.message.reply_text("❌ Could not scrape new words. Please try again later.")
+
+
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Commande /help - Aide"""
     help_text = """🆘 **Help & Commands**
@@ -370,6 +394,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /start - Welcome message
 /practice - Start new practice session
 /level - Change difficulty level
+/scrape - Scrape new vocabulary words (if enabled)
 /vocab - Vocabulary statistics
 /progress - Your learning progress
 /clear - Clear conversation history
@@ -437,6 +462,7 @@ def main():
     application.add_handler(CommandHandler("level_beginner", set_level_beginner))
     application.add_handler(CommandHandler("level_intermediate", set_level_intermediate))
     application.add_handler(CommandHandler("level_advanced", set_level_advanced))
+    application.add_handler(CommandHandler("scrape", scrape_words))
     application.add_handler(CommandHandler("vocab", vocab_stats))
     application.add_handler(CommandHandler("progress", progress))
     application.add_handler(CommandHandler("clear", clear_history))
