@@ -73,20 +73,41 @@ class LanguageLearningBot:
         self.memory = memory_manager
         self.model = MODEL_NAME
         self.provider = AI_PROVIDER
+        self.user_levels = {}  # Stocker le niveau par utilisateur
     
-    def get_system_prompt(self, user_name: str, vocab_list: list) -> str:
+    def get_user_level(self, user_id: int) -> str:
+        """Retourne le niveau de l'utilisateur (par défaut: beginner)"""
+        return self.user_levels.get(user_id, "beginner")
+    
+    def set_user_level(self, user_id: int, level: str):
+        """Change le niveau de l'utilisateur"""
+        self.user_levels[user_id] = level
+    
+    def get_system_prompt(self, user_name: str, vocab_list: list, level: str = "beginner") -> str:
         """
         Génère le prompt système pour l'agent
         
         Args:
             user_name: Prénom de l'utilisateur
             vocab_list: Liste de vocabulaire
+            level: Niveau de difficulté (beginner, intermediate, advanced)
         
         Returns:
             Prompt système
         """
+        level_descriptions = {
+            "beginner": "Use simple vocabulary and basic grammar. Explain clearly.",
+            "intermediate": "Use moderate vocabulary and varied grammar structures.",
+            "advanced": "Use complex vocabulary, idioms, and advanced grammar."
+        }
+        
+        level_desc = level_descriptions.get(level, level_descriptions["beginner"])
+        
         return f"""# Context
 You are an AI-powered English tutor designed to help {user_name} learn and practice English vocabulary and grammar effectively.
+
+# Student Level: {level.upper()}
+{level_desc}
 
 # Role
 Your primary role is to generate interactive exercises (MCQs, fill-in-the-blank, grammar exercises) and evaluate the user's responses.
@@ -173,6 +194,9 @@ D) transport"
             # Récupérer le vocabulaire
             vocab_list = self.vocab.get_vocabulary_list()
             
+            # Récupérer le niveau de l'utilisateur
+            user_level = self.get_user_level(user_id)
+            
             # Récupérer l'historique de conversation
             history = self.memory.get_conversation(user_id)
             
@@ -180,7 +204,7 @@ D) transport"
             messages = [
                 {
                     "role": "system",
-                    "content": self.get_system_prompt(user_name, vocab_list)
+                    "content": self.get_system_prompt(user_name, vocab_list, user_level)
                 }
             ]
             
@@ -234,6 +258,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 📚 **Available Commands:**
 /start - Show this welcome message
 /practice - Start a new practice session
+/level - Change difficulty level (beginner/intermediate/advanced)
 /vocab - View vocabulary statistics
 /progress - View your learning progress
 /clear - Clear conversation history
@@ -293,6 +318,50 @@ async def clear_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ Conversation history cleared! Start fresh with /practice")
 
 
+async def level_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Commande /level - Changer le niveau"""
+    user_id = update.effective_user.id
+    current_level = bot.get_user_level(user_id)
+    
+    level_message = f"""📊 **Change Your Learning Level**
+
+Current level: **{current_level.upper()}**
+
+Choose your level:
+1️⃣ /level_beginner - Simple vocabulary, basic grammar
+2️⃣ /level_intermediate - Moderate vocabulary, varied grammar
+3️⃣ /level_advanced - Complex vocabulary, idioms, advanced grammar
+
+💡 Tip: Start with beginner if you're unsure!
+"""
+    
+    await update.message.reply_text(level_message)
+
+
+async def set_level_beginner(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Change niveau à débutant"""
+    user_id = update.effective_user.id
+    bot.set_user_level(user_id, "beginner")
+    memory_manager.clear_conversation(user_id)
+    await update.message.reply_text("✅ Level set to BEGINNER! Let's start with basics. Use /practice to begin!")
+
+
+async def set_level_intermediate(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Change niveau à intermédiaire"""
+    user_id = update.effective_user.id
+    bot.set_user_level(user_id, "intermediate")
+    memory_manager.clear_conversation(user_id)
+    await update.message.reply_text("✅ Level set to INTERMEDIATE! Ready for more challenges. Use /practice!")
+
+
+async def set_level_advanced(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Change niveau à avancé"""
+    user_id = update.effective_user.id
+    bot.set_user_level(user_id, "advanced")
+    memory_manager.clear_conversation(user_id)
+    await update.message.reply_text("✅ Level set to ADVANCED! Let's tackle complex English. Use /practice!")
+
+
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Commande /help - Aide"""
     help_text = """🆘 **Help & Commands**
@@ -300,6 +369,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 **Basic Commands:**
 /start - Welcome message
 /practice - Start new practice session
+/level - Change difficulty level
 /vocab - Vocabulary statistics
 /progress - Your learning progress
 /clear - Clear conversation history
@@ -363,6 +433,10 @@ def main():
     # Ajouter les handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("practice", practice))
+    application.add_handler(CommandHandler("level", level_command))
+    application.add_handler(CommandHandler("level_beginner", set_level_beginner))
+    application.add_handler(CommandHandler("level_intermediate", set_level_intermediate))
+    application.add_handler(CommandHandler("level_advanced", set_level_advanced))
     application.add_handler(CommandHandler("vocab", vocab_stats))
     application.add_handler(CommandHandler("progress", progress))
     application.add_handler(CommandHandler("clear", clear_history))
